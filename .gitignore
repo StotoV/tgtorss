@@ -7,3 +7,4 @@ venv
 config.ini
 *.pickle
 *.sh
+tags

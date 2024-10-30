@@ -17,6 +17,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
     level=int(config['Logging']['LEVEL']))
 
+import base64
 from feedgen.feed import FeedGenerator
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import HTMLResponse
@@ -96,10 +97,20 @@ async def create_rss(channel_alias: str, request: Request):
     fg.language(config['RSS']['LANGUAGE'])
     for m in messages:
         if not (config['RSS'].getboolean('SKIP_EMPTY') and not m.text):
+            content = ''
+
+            path = await m.download_media()
+            if path:
+                ext = path.split(".")[1]
+                if ext in ['jpg', 'png']:
+                    blob = await client.download_media(m, bytes)
+                    b64blob = base64.b64encode(blob).decode('ascii')
+                    content += '<img src="data:image/'+ext+';base64,'+b64blob+'" />\n'
             fe = fg.add_entry(order='append')
             link = 'https://t.me/' + ('c/' if private_channel else '')
             fe.guid(guid=f"{link}{ch['username']}/{m.id}", permalink=True)
-            fe.content(markdown(m.text))
+            content += markdown(m.text)
+            fe.content(content)
             fe.published(m.date)
 
     logging.debug(f"Successfully requested '{ch['username']}'")
