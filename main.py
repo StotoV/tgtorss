@@ -99,13 +99,24 @@ async def create_rss(channel_alias: str, request: Request):
         if not (config['RSS'].getboolean('SKIP_EMPTY') and not m.text):
             content = ''
 
-            path = await m.download_media()
-            if path:
-                ext = path.split(".")[1]
-                if ext in ['jpg', 'png']:
-                    blob = await client.download_media(m, bytes)
-                    b64blob = base64.b64encode(blob).decode('ascii')
-                    content += '<img src="data:image/'+ext+';base64,'+b64blob+'" />\n'
+            magic_numbers = [
+                ('png', bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])),
+                ('jpg', bytes([0xFF, 0xD8, 0xFF])),
+                ('jpg', bytes([0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20, 0x0D, 0x0A, 0x87, 0x0A])),
+                ('jpg', bytes([0xFF, 0x4F, 0xFF, 0x51])),
+            ]
+            blob = await client.download_media(m, bytes)
+            ext = None
+            if blob:
+                for extension, magic_number in magic_numbers:
+                    if blob.startswith(magic_number):
+                        ext = extension
+                        break
+
+            if ext:
+                b64blob = base64.b64encode(blob).decode('ascii')
+                content += '<img src="data:image/'+ext+';base64,'+b64blob+'" />\n'
+
             fe = fg.add_entry(order='append')
             link = 'https://t.me/' + ('c/' if private_channel else '')
             fe.guid(guid=f"{link}{ch['username']}/{m.id}", permalink=True)
